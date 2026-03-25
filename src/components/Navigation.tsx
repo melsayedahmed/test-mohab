@@ -50,6 +50,7 @@ export default function Navigation() {
   { label: 'Projects', path: '/projects' },
   { label: 'YouTube', path: '/youtube' },
   { label: 'Blog', path: '/blogs' },
+  { label: 'Map', path: '/map' },
   { label: 'Contact', path: '/contact' },
 ];
 

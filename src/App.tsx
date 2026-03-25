@@ -9,6 +9,7 @@ import ContactPage from './components/ContactPage';
 import BlogsPage from './components/BlogsPage';
 import BlogDetailPage from './components/BlogDetailPage';
 import YouTubePage from './components/YouTubePage';
+import GlobalMap from './components/GlobalMap';
 import Footer from './components/Footer';
 import Preloader from './components/Preloader';
 import ScrollToTop from './components/ScrollToTop';
@@ -31,6 +32,7 @@ function App() {
             <Route path="/blogs" element={<BlogsPage />} />
             <Route path="/blog/:slug" element={<BlogDetailPage />} />
             <Route path="/youtube" element={<YouTubePage />} />
+            <Route path="/map" element={<GlobalMap />} />
           </Routes>
           <Footer />
         </div>
