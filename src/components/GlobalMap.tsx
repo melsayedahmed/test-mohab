@@ -314,47 +314,54 @@ export default function GlobalMap() {
 
       <div ref={mapRef} className="absolute inset-0 w-full h-full z-0" />
 
-      <div className="absolute top-8 left-8 bg-gray-900/80 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-6 shadow-2xl shadow-cyan-500/20 min-w-[300px] z-40">
+      <div className="absolute top-4 left-4 sm:top-8 sm:left-8 bg-gray-900/80 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-4 sm:p-6 shadow-2xl shadow-cyan-500/20 w-[calc(100%-2rem)] sm:w-auto sm:min-w-[300px] max-h-[calc(100vh-2rem)] overflow-y-auto z-40">
+        <style>{`
+          @media (max-width: 640px) {
+            .control-panel-content {
+              max-height: calc(100vh - 8rem);
+            }
+          }
+        `}</style>
         <div className="relative overflow-hidden">
           <div className="absolute inset-0 scan-line h-1 bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent pointer-events-none"></div>
 
           <div className="flex items-center gap-3 mb-6">
-            <Globe2 className="w-6 h-6 text-cyan-400" />
-            <h2 className="text-xl font-bold text-white glow-text">Global Tracking</h2>
+            <Globe2 className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-400 flex-shrink-0" />
+            <h2 className="text-lg sm:text-xl font-bold text-white glow-text truncate">Global Tracking</h2>
           </div>
 
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-3">
-              <Activity className="w-4 h-4 text-green-400 animate-pulse" />
-              <span className="text-sm text-green-400 font-medium">System Active</span>
+              <Activity className="w-4 h-4 text-green-400 animate-pulse flex-shrink-0" />
+              <span className="text-xs sm:text-sm text-green-400 font-medium whitespace-nowrap">System Active</span>
             </div>
 
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Countries:</span>
-                <span className="text-white font-bold">{projectsData.length}</span>
+            <div className="space-y-2 text-xs sm:text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-400 whitespace-nowrap">Countries:</span>
+                <span className="text-white font-bold flex-shrink-0">{projectsData.length}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Total Projects:</span>
-                <span className="text-white font-bold">{projectsData.reduce((acc, p) => acc + p.projects, 0)}</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-400 whitespace-nowrap">Projects:</span>
+                <span className="text-white font-bold flex-shrink-0">{projectsData.reduce((acc, p) => acc + p.projects, 0)}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Locations:</span>
-                <span className="text-white font-bold">{studentsData.length}</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-400 whitespace-nowrap">Locations:</span>
+                <span className="text-white font-bold flex-shrink-0">{studentsData.length}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-400">Total Students:</span>
-                <span className="text-white font-bold">{studentsData.reduce((acc, s) => acc + s.students, 0)}</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-gray-400 whitespace-nowrap">Students:</span>
+                <span className="text-white font-bold flex-shrink-0">{studentsData.reduce((acc, s) => acc + s.students, 0)}</span>
               </div>
             </div>
           </div>
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-400 mb-3">Layer View</label>
-            <div className="grid grid-cols-3 gap-2">
+            <label className="block text-xs sm:text-sm font-medium text-gray-400 mb-3">Layer View</label>
+            <div className="grid grid-cols-3 gap-1 sm:gap-2">
               <button
                 onClick={() => setLayerMode('projects')}
-                className={`toggle-button px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                className={`toggle-button px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs font-medium transition-all ${
                   layerMode === 'projects'
                     ? 'active bg-green-500/20 text-green-400 border border-green-500/50'
                     : 'bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:bg-gray-800'
@@ -364,7 +371,7 @@ export default function GlobalMap() {
               </button>
               <button
                 onClick={() => setLayerMode('students')}
-                className={`toggle-button px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                className={`toggle-button px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs font-medium transition-all ${
                   layerMode === 'students'
                     ? 'active bg-cyan-500/20 text-cyan-400 border border-cyan-500/50'
                     : 'bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:bg-gray-800'
@@ -374,7 +381,7 @@ export default function GlobalMap() {
               </button>
               <button
                 onClick={() => setLayerMode('both')}
-                className={`toggle-button px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                className={`toggle-button px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs font-medium transition-all ${
                   layerMode === 'both'
                     ? 'active bg-gradient-to-r from-green-500/20 to-cyan-500/20 text-white border border-cyan-500/50'
                     : 'bg-gray-800/50 text-gray-400 border border-gray-700/50 hover:bg-gray-800'
@@ -389,22 +396,22 @@ export default function GlobalMap() {
             <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Legend</div>
             <div className="space-y-2">
               <div className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded-full bg-green-500 shadow-lg shadow-green-500/50"></div>
-                <span className="text-sm text-gray-300">Projects</span>
+                <div className="w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-green-500 shadow-lg shadow-green-500/50 flex-shrink-0"></div>
+                <span className="text-xs sm:text-sm text-gray-300 truncate">Projects</span>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-4 h-4 rounded-full bg-cyan-500 shadow-lg shadow-cyan-500/50 animate-pulse"></div>
-                <span className="text-sm text-gray-300">Students</span>
+                <div className="w-3 h-3 sm:w-4 sm:h-4 rounded-full bg-cyan-500 shadow-lg shadow-cyan-500/50 animate-pulse flex-shrink-0"></div>
+                <span className="text-xs sm:text-sm text-gray-300 truncate">Students</span>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 z-40">
-        <div className="flex items-center gap-2 bg-gray-900/80 backdrop-blur-md border border-cyan-500/30 rounded-full px-6 py-3">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-          <span className="text-sm text-gray-300 font-medium">Live Tracking Enabled</span>
+      <div className="absolute bottom-4 sm:bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 z-40 px-4">
+        <div className="flex items-center gap-2 bg-gray-900/80 backdrop-blur-md border border-cyan-500/30 rounded-full px-4 sm:px-6 py-2 sm:py-3 whitespace-nowrap">
+          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse flex-shrink-0"></div>
+          <span className="text-xs sm:text-sm text-gray-300 font-medium truncate">Live Tracking</span>
         </div>
       </div>
 
