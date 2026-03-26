@@ -1,274 +1,294 @@
 import { useEffect, useRef, useState } from 'react';
-import { Globe as Globe2, MapPin, Folder, Activity } from 'lucide-react';
+import { Globe as Globe2, Activity } from 'lucide-react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { projectsData, studentsData } from '../data/mapData';
 
 type LayerMode = 'projects' | 'students' | 'both';
 
+interface GeoJSONFeature {
+  type: string;
+  properties: {
+    name: string;
+  };
+  geometry: {
+    type: string;
+    coordinates: number[][][] | number[][];
+  };
+}
+
+interface GeoJSONData {
+  type: string;
+  features: GeoJSONFeature[];
+}
+
 export default function GlobalMap() {
   const mapRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mapInstanceRef = useRef<L.Map | null>(null);
+  const layersRef = useRef<{
+    projects: L.GeoJSON | null;
+    students: L.LayerGroup | null;
+  }>({ projects: null, students: null });
+
   const [layerMode, setLayerMode] = useState<LayerMode>('both');
+  const [geoData, setGeoData] = useState<GeoJSONData | null>(null);
   const [hoveredCountry, setHoveredCountry] = useState<string | null>(null);
-  const [hoveredStudent, setHoveredStudent] = useState<string | null>(null);
-  const animationFrameRef = useRef<number>();
+  const [hoveredMarker, setHoveredMarker] = useState<string | null>(null);
+
+  const getProjectsForCountry = (countryName: string) => {
+    return projectsData.find(p => p.country.toLowerCase() === countryName.toLowerCase());
+  };
+
+  const initializeMap = () => {
+    if (!mapRef.current || mapInstanceRef.current) return;
+
+    const map = L.map(mapRef.current, {
+      center: [20, 0],
+      zoom: 2,
+      zoomControl: true,
+      attributionControl: false,
+    });
+
+    map.on('click', () => {
+      setHoveredCountry(null);
+      setHoveredMarker(null);
+    });
+
+    const customTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+      attribution: '',
+      maxZoom: 19,
+    });
+
+    customTileLayer.addTo(map);
+
+    mapInstanceRef.current = map;
+  };
+
+  const loadCountriesGeoJSON = async () => {
+    try {
+      const response = await fetch('https://raw.githubusercontent.com/johan/world.geo.json/master/countries.geo.json');
+      const data: GeoJSONData = await response.json();
+      setGeoData(data);
+    } catch (error) {
+      console.error('Error loading GeoJSON:', error);
+    }
+  };
 
   useEffect(() => {
-    if (!canvasRef.current) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const resizeCanvas = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-    };
-
-    resizeCanvas();
-    window.addEventListener('resize', resizeCanvas);
-
-    let time = 0;
-
-    const animate = () => {
-      if (!ctx) return;
-
-      time += 0.01;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      drawGrid(ctx, canvas.width, canvas.height, time);
-
-      if (layerMode === 'projects' || layerMode === 'both') {
-        drawProjectCountries(ctx, canvas.width, canvas.height, time);
-      }
-
-      if (layerMode === 'students' || layerMode === 'both') {
-        drawStudentMarkers(ctx, canvas.width, canvas.height, time);
-      }
-
-      animationFrameRef.current = requestAnimationFrame(animate);
-    };
-
-    animate();
+    initializeMap();
+    loadCountriesGeoJSON();
 
     return () => {
-      window.removeEventListener('resize', resizeCanvas);
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
       }
     };
-  }, [layerMode]);
+  }, []);
 
-  const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number, time: number) => {
-    ctx.strokeStyle = 'rgba(0, 255, 255, 0.05)';
-    ctx.lineWidth = 1;
+  useEffect(() => {
+    if (!mapInstanceRef.current || !geoData) return;
 
-    const gridSize = 40;
-    const offsetX = (time * 20) % gridSize;
-    const offsetY = (time * 20) % gridSize;
+    const map = mapInstanceRef.current;
 
-    for (let x = -offsetX; x < width; x += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-      ctx.stroke();
+    if (layersRef.current.projects) {
+      map.removeLayer(layersRef.current.projects);
     }
-
-    for (let y = -offsetY; y < height; y += gridSize) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
-      ctx.stroke();
-    }
-  };
-
-  const drawProjectCountries = (ctx: CanvasRenderingContext2D, width: number, height: number, time: number) => {
-    const countryPositions = [
-      { name: 'Saudi Arabia', x: 0.62, y: 0.45 },
-      { name: 'Egypt', x: 0.55, y: 0.45 },
-      { name: 'United States', x: 0.25, y: 0.35 },
-      { name: 'United Arab Emirates', x: 0.64, y: 0.47 },
-      { name: 'Kuwait', x: 0.61, y: 0.43 },
-      { name: 'Jordan', x: 0.57, y: 0.44 },
-    ];
-
-    countryPositions.forEach((pos) => {
-      const project = projectsData.find(p => p.country === pos.name);
-      if (!project) return;
-
-      const x = pos.x * width;
-      const y = pos.y * height;
-      const isHovered = hoveredCountry === pos.name;
-
-      ctx.save();
-
-      const gradient = ctx.createRadialGradient(x, y, 0, x, y, 60);
-      gradient.addColorStop(0, isHovered ? 'rgba(34, 197, 94, 0.4)' : 'rgba(34, 197, 94, 0.2)');
-      gradient.addColorStop(0.5, 'rgba(34, 197, 94, 0.1)');
-      gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
-
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(x, y, 60, 0, Math.PI * 2);
-      ctx.fill();
-
-      const glowIntensity = 0.5 + Math.sin(time * 2) * 0.3;
-      ctx.strokeStyle = isHovered ? `rgba(34, 197, 94, ${glowIntensity * 1.5})` : `rgba(34, 197, 94, ${glowIntensity})`;
-      ctx.lineWidth = isHovered ? 3 : 2;
-      ctx.beginPath();
-      ctx.arc(x, y, 50, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.fillStyle = isHovered ? '#22c55e' : '#10b981';
-      ctx.beginPath();
-      ctx.arc(x, y, 8, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.restore();
-    });
-  };
-
-  const drawStudentMarkers = (ctx: CanvasRenderingContext2D, width: number, height: number, time: number) => {
-    studentsData.forEach((location) => {
-      const x = ((location.lng + 180) / 360) * width;
-      const y = ((90 - location.lat) / 180) * height;
-
-      const size = Math.max(8, Math.min(20, location.students / 10));
-      const isHovered = hoveredStudent === location.name;
-
-      ctx.save();
-
-      const pulseSize = size + Math.sin(time * 3) * 3;
-      const pulseOpacity = 0.3 + Math.sin(time * 3) * 0.2;
-
-      const pulseGradient = ctx.createRadialGradient(x, y, 0, x, y, pulseSize * 2);
-      pulseGradient.addColorStop(0, `rgba(6, 182, 212, ${pulseOpacity})`);
-      pulseGradient.addColorStop(0.5, `rgba(6, 182, 212, ${pulseOpacity * 0.5})`);
-      pulseGradient.addColorStop(1, 'rgba(6, 182, 212, 0)');
-
-      ctx.fillStyle = pulseGradient;
-      ctx.beginPath();
-      ctx.arc(x, y, pulseSize * 2, 0, Math.PI * 2);
-      ctx.fill();
-
-      const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, size + 5);
-      glowGradient.addColorStop(0, isHovered ? 'rgba(6, 182, 212, 1)' : 'rgba(6, 182, 212, 0.8)');
-      glowGradient.addColorStop(0.7, 'rgba(6, 182, 212, 0.3)');
-      glowGradient.addColorStop(1, 'rgba(6, 182, 212, 0)');
-
-      ctx.fillStyle = glowGradient;
-      ctx.beginPath();
-      ctx.arc(x, y, size + 5, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = isHovered ? '#22d3ee' : '#06b6d4';
-      ctx.beginPath();
-      ctx.arc(x, y, size, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.beginPath();
-      ctx.arc(x - size / 3, y - size / 3, size / 4, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.restore();
-    });
-  };
-
-  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    let foundCountry = false;
-    let foundStudent = false;
 
     if (layerMode === 'projects' || layerMode === 'both') {
-      const countryPositions = [
-        { name: 'Saudi Arabia', x: 0.62, y: 0.45 },
-        { name: 'Egypt', x: 0.55, y: 0.45 },
-        { name: 'United States', x: 0.25, y: 0.35 },
-        { name: 'United Arab Emirates', x: 0.64, y: 0.47 },
-        { name: 'Kuwait', x: 0.61, y: 0.43 },
-        { name: 'Jordan', x: 0.57, y: 0.44 },
-      ];
+      const projectsGeoJSON = L.geoJSON(geoData, {
+        filter: (feature) => {
+          const countryName = feature.properties.name;
+          return !!getProjectsForCountry(countryName);
+        },
+        style: () => ({
+          color: '#10b981',
+          weight: 2,
+          opacity: 0.8,
+          fillColor: '#10b981',
+          fillOpacity: 0.2,
+        }),
+        onEachFeature: (feature: GeoJSONFeature, layer) => {
+          const countryName = feature.properties.name;
+          const projectInfo = getProjectsForCountry(countryName);
 
-      for (const pos of countryPositions) {
-        const px = pos.x * canvas.width;
-        const py = pos.y * canvas.height;
-        const distance = Math.sqrt((x - px) ** 2 + (y - py) ** 2);
+          if (projectInfo) {
+            layer.on('mouseover', () => {
+              setHoveredCountry(countryName);
+              (layer as L.Path).setStyle({
+                weight: 3,
+                fillOpacity: 0.4,
+                color: '#22c55e',
+              });
+            });
 
-        if (distance < 50) {
-          setHoveredCountry(pos.name);
-          foundCountry = true;
-          break;
-        }
-      }
+            layer.on('mouseout', () => {
+              setHoveredCountry(null);
+              (layer as L.Path).setStyle({
+                weight: 2,
+                fillOpacity: 0.2,
+                color: '#10b981',
+              });
+            });
+
+            layer.bindPopup(
+              `<div class="bg-gray-900 border border-cyan-500/50 rounded-lg p-3 text-white">
+                <div class="font-bold text-green-400">${countryName}</div>
+                <div class="text-sm text-gray-300">${projectInfo.projects} Projects</div>
+              </div>`,
+              { className: 'custom-popup' }
+            );
+          }
+        },
+      });
+
+      projectsGeoJSON.addTo(map);
+      layersRef.current.projects = projectsGeoJSON;
     }
+  }, [geoData, layerMode, hoveredCountry]);
 
-    if (!foundCountry) {
-      setHoveredCountry(null);
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+
+    const map = mapInstanceRef.current;
+
+    if (layersRef.current.students) {
+      map.removeLayer(layersRef.current.students);
     }
 
     if (layerMode === 'students' || layerMode === 'both') {
-      for (const location of studentsData) {
-        const px = ((location.lng + 180) / 360) * canvas.width;
-        const py = ((90 - location.lat) / 180) * canvas.height;
+      const studentsGroup = L.layerGroup();
+
+      studentsData.forEach((location) => {
         const size = Math.max(8, Math.min(20, location.students / 10));
-        const distance = Math.sqrt((x - px) ** 2 + (y - py) ** 2);
 
-        if (distance < size + 10) {
-          setHoveredStudent(location.name);
-          foundStudent = true;
-          break;
-        }
-      }
-    }
+        const svgIcon = L.divIcon({
+          className: 'custom-marker',
+          html: `
+            <div class="relative w-full h-full flex items-center justify-center">
+              <style>
+                @keyframes pulse {
+                  0%, 100% { transform: scale(1); opacity: 0.8; }
+                  50% { transform: scale(1.2); opacity: 0.5; }
+                }
+                .student-marker {
+                  animation: pulse 2s infinite;
+                }
+              </style>
+              <div class="student-marker absolute rounded-full bg-cyan-500 shadow-lg"
+                   style="width: ${size * 2}px; height: ${size * 2}px; box-shadow: 0 0 ${size * 3}px rgba(6, 182, 212, 0.8);"></div>
+              <div class="absolute rounded-full bg-white"
+                   style="width: ${size * 0.8}px; height: ${size * 0.8}px;"></div>
+            </div>
+          `,
+          iconSize: [size * 3, size * 3],
+          iconAnchor: [size * 1.5, size * 1.5],
+        });
 
-    if (!foundStudent) {
-      setHoveredStudent(null);
-    }
-  };
+        const marker = L.marker([location.lat, location.lng], {
+          icon: svgIcon,
+        });
 
-  const getTooltipContent = () => {
-    if (hoveredCountry) {
-      const project = projectsData.find(p => p.country === hoveredCountry);
-      return project ? `${hoveredCountry}\n${project.projects} Projects` : null;
+        marker.on('mouseover', () => {
+          setHoveredMarker(location.name);
+          marker.setPopupContent(
+            `<div class="bg-gray-900 border border-cyan-500/50 rounded-lg p-3 text-white">
+              <div class="font-bold text-cyan-400">${location.name}</div>
+              <div class="text-sm text-gray-300">${location.students} Students</div>
+            </div>`
+          );
+          marker.openPopup();
+        });
+
+        marker.on('mouseout', () => {
+          setHoveredMarker(null);
+          marker.closePopup();
+        });
+
+        marker.bindPopup(
+          `<div class="bg-gray-900 border border-cyan-500/50 rounded-lg p-3 text-white">
+            <div class="font-bold text-cyan-400">${location.name}</div>
+            <div class="text-sm text-gray-300">${location.students} Students</div>
+          </div>`,
+          { className: 'custom-popup' }
+        );
+
+        marker.addTo(studentsGroup);
+      });
+
+      studentsGroup.addTo(map);
+      layersRef.current.students = studentsGroup;
     }
-    if (hoveredStudent) {
-      const student = studentsData.find(s => s.name === hoveredStudent);
-      return student ? `${hoveredStudent}\n${student.students} Students` : null;
-    }
-    return null;
-  };
+  }, [layerMode, hoveredMarker]);
 
   return (
-    <div className="relative w-full h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black overflow-hidden">
+    <div className="relative w-full h-screen bg-gray-950 overflow-hidden">
       <style>{`
+        .leaflet-container {
+          background-color: #0f172a;
+          font-family: inherit;
+        }
+
+        .leaflet-popup-content-wrapper {
+          background-color: transparent;
+          box-shadow: none;
+          border: none;
+        }
+
+        .leaflet-popup-tip {
+          display: none;
+        }
+
+        .leaflet-control-zoom {
+          border: 1px solid rgba(6, 182, 212, 0.3) !important;
+          background-color: rgba(17, 24, 39, 0.8) !important;
+          backdrop-filter: blur(12px);
+        }
+
+        .leaflet-control-zoom-in,
+        .leaflet-control-zoom-out {
+          background-color: transparent !important;
+          color: #06b6d4 !important;
+          border-bottom: 1px solid rgba(6, 182, 212, 0.2) !important;
+          font-weight: bold;
+          transition: all 0.3s ease;
+        }
+
+        .leaflet-control-zoom-in:hover,
+        .leaflet-control-zoom-out:hover {
+          background-color: rgba(6, 182, 212, 0.1) !important;
+          color: #22d3ee !important;
+        }
+
+        .custom-popup .leaflet-popup-content {
+          margin: 0;
+          padding: 0;
+        }
+
+        .custom-marker {
+          filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.4));
+        }
+
+        @keyframes gridMove {
+          0% { transform: translateX(0) translateY(0); }
+          100% { transform: translateX(40px) translateY(40px); }
+        }
+
+        .grid-overlay {
+          animation: gridMove 20s linear infinite;
+        }
+
         @keyframes scanLine {
           0% { transform: translateY(-100%); }
           100% { transform: translateY(100%); }
-        }
-
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        @keyframes pulse {
-          0%, 100% { opacity: 0.6; }
-          50% { opacity: 1; }
         }
 
         .scan-line {
           animation: scanLine 3s linear infinite;
         }
 
-        .fade-transition {
-          transition: opacity 0.5s ease-in-out;
+        .glow-text {
+          text-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
         }
 
         .toggle-button {
@@ -284,30 +304,17 @@ export default function GlobalMap() {
           border-radius: inherit;
           opacity: 0;
           transition: opacity 0.3s ease;
+          z-index: -1;
         }
 
         .toggle-button.active::before {
           opacity: 1;
         }
-
-        .glow-text {
-          text-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
-        }
       `}</style>
 
-      <div className="absolute inset-0 bg-gradient-to-t from-cyan-500/5 via-transparent to-green-500/5 pointer-events-none"></div>
+      <div ref={mapRef} className="absolute inset-0 w-full h-full z-0" />
 
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 w-full h-full"
-        onMouseMove={handleCanvasMouseMove}
-        onMouseLeave={() => {
-          setHoveredCountry(null);
-          setHoveredStudent(null);
-        }}
-      />
-
-      <div className="absolute top-8 left-8 bg-gray-900/80 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-6 shadow-2xl shadow-cyan-500/20 min-w-[280px]">
+      <div className="absolute top-8 left-8 bg-gray-900/80 backdrop-blur-xl border border-cyan-500/30 rounded-2xl p-6 shadow-2xl shadow-cyan-500/20 min-w-[300px] z-40">
         <div className="relative overflow-hidden">
           <div className="absolute inset-0 scan-line h-1 bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent pointer-events-none"></div>
 
@@ -324,8 +331,16 @@ export default function GlobalMap() {
 
             <div className="space-y-2 text-sm">
               <div className="flex items-center justify-between">
+                <span className="text-gray-400">Countries:</span>
+                <span className="text-white font-bold">{projectsData.length}</span>
+              </div>
+              <div className="flex items-center justify-between">
                 <span className="text-gray-400">Total Projects:</span>
                 <span className="text-white font-bold">{projectsData.reduce((acc, p) => acc + p.projects, 0)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">Locations:</span>
+                <span className="text-white font-bold">{studentsData.length}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-400">Total Students:</span>
@@ -386,7 +401,14 @@ export default function GlobalMap() {
         </div>
       </div>
 
-      {getTooltipContent() && (
+      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4 z-40">
+        <div className="flex items-center gap-2 bg-gray-900/80 backdrop-blur-md border border-cyan-500/30 rounded-full px-6 py-3">
+          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+          <span className="text-sm text-gray-300 font-medium">Live Tracking Enabled</span>
+        </div>
+      </div>
+
+      {hoveredCountry && (
         <div className="fixed pointer-events-none z-50 bg-gray-900/95 backdrop-blur-md border border-cyan-500/50 rounded-lg px-4 py-3 shadow-2xl shadow-cyan-500/30"
           style={{
             left: '50%',
@@ -395,21 +417,30 @@ export default function GlobalMap() {
           }}
         >
           <div className="text-white whitespace-pre-line text-center">
-            {getTooltipContent()?.split('\n').map((line, i) => (
-              <div key={i} className={i === 0 ? 'font-bold text-cyan-400' : 'text-sm text-gray-300'}>
-                {line}
-              </div>
-            ))}
+            <div className="font-bold text-green-400">{hoveredCountry}</div>
+            <div className="text-sm text-gray-300">
+              {getProjectsForCountry(hoveredCountry)?.projects || 0} Projects
+            </div>
           </div>
         </div>
       )}
 
-      <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 flex items-center gap-4">
-        <div className="flex items-center gap-2 bg-gray-900/80 backdrop-blur-md border border-cyan-500/30 rounded-full px-6 py-3">
-          <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-          <span className="text-sm text-gray-300 font-medium">Live Tracking Enabled</span>
+      {hoveredMarker && (
+        <div className="fixed pointer-events-none z-50 bg-gray-900/95 backdrop-blur-md border border-cyan-500/50 rounded-lg px-4 py-3 shadow-2xl shadow-cyan-500/30"
+          style={{
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+          }}
+        >
+          <div className="text-white whitespace-pre-line text-center">
+            <div className="font-bold text-cyan-400">{hoveredMarker}</div>
+            <div className="text-sm text-gray-300">
+              {studentsData.find(s => s.name === hoveredMarker)?.students || 0} Students
+            </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
